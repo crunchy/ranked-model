@@ -10,9 +10,7 @@ module RankedModel
       self.name = name.to_sym
       self.column = options[:column] || name
 
-      [ :scope, :with_same ].each do |key|
-        self.send "#{key}=", options[key]
-      end
+      @scope, @with_same = options.values_at :scope, :with_same
     end
 
     def with instance
