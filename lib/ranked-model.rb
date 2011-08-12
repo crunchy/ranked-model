@@ -1,3 +1,5 @@
+require 'forwardable'
+
 require File.dirname(__FILE__)+'/ranked-model/ranker'
 require File.dirname(__FILE__)+'/ranked-model/railtie' if defined?(Rails::Railtie)
 

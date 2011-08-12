@@ -7,34 +7,71 @@ module RankedModel
     attr_accessor :name, :column, :scope, :with_same
 
     def initialize name, options={}
-      self.name = name.to_sym
-      self.column = options[:column] || name
-
+      @name = name.to_sym
+      @column = options[:column] || name
       @scope, @with_same = options.values_at :scope, :with_same
     end
 
     # instance is the AR object
     def with instance
-      validate_options_for instance
       Mapper.new self, instance
     end
 
-    def validate_options_for instance
-      if @scope && !instance.class.respond_to?(@scope)
-        raise RankedModel::InvalidScope, %Q{No scope called "#{@scope}" found in model}
+    def to_options
+      {:name => @name, :column => @column, :scope => @scope, :with_same => @with_same}
+    end
+
+    class ModelProxy < BasicObject
+      extend ::Forwardable
+
+      def initialize(instance, options)
+        @instance = instance
+        @name, @column, @scope, @with_same = options.values_at :name, :column, :scope, :with_same
+
+        validate_options!
       end
 
-      has_valid_with_same = case @with_same
-        when Symbol
-          instance.respond_to?(@with_same)
-        when Array
-          @with_same.any? {|attr| instance.respond_to?(attr) }
-        else
-          true
+      def_delegators :@instance, :respond_to?, :class, :raise, :new_record?
+
+      def update_rank! value
+        # Bypass callbacks
+        #
+        @instance.class.where(:id => @instance.id).update_all @column => value
       end
 
-      unless has_valid_with_same
-        raise RankedModel::InvalidField, %Q{No field called "#{@with_same}" found in model}
+      def position
+        @instance.send "#{@name}_position"
+      end
+
+      def rank
+        @instance.send "#{@column}"
+      end
+
+      def rank_at value
+        @instance.send "#{@column}=", value
+      end
+
+      def rank_changed?
+        @instance.send "#{@column}_changed?"
+      end
+
+      def validate_options!
+        if @scope && !@instance.class.respond_to?(@scope)
+          ::Kernel.raise ::RankedModel::InvalidScope, %Q{No scope called "#{@scope}" found in model}
+        end
+
+        has_valid_with_same = case @with_same
+          when ::Symbol
+            respond_to?(@with_same)
+          when ::Array
+            @with_same.any? {|attr| respond_to?(attr) }
+          else
+            true
+        end
+
+        unless has_valid_with_same
+          ::Kernel.raise ::RankedModel::InvalidField, %Q{No field called "#{@with_same}" found in model}
+        end
       end
     end
 
@@ -44,6 +81,7 @@ module RankedModel
       def initialize ranker, instance
         @ranker   = ranker
         @instance = instance
+        @model = ModelProxy.new(instance, ranker.to_options)
       end
 
       def handle_ranking
@@ -51,19 +89,8 @@ module RankedModel
         assure_unique_position
       end
 
-      def update_rank! value
-        # Bypass callbacks
-        #
-        @instance.class.where(:id => @instance.id).update_all ["#{@ranker.column} = ?", value]
-      end
-
-      def position
-        @instance.send "#{@ranker.name}_position"
-      end
-
-      def rank
-        @instance.send "#{@ranker.column}"
-      end
+      extend ::Forwardable
+      def_delegators :@model, :update_rank!, :rank, :position, :rank_at, :rank_changed?, :new_record?
 
       def current_at_position _pos
         if (ordered_instance = finder.offset(_pos).first)
@@ -76,18 +103,6 @@ module RankedModel
       def position_at value
         @instance.send "#{@ranker.name}_position=", value
         update_index_from_position
-      end
-
-      def rank_at value
-        @instance.send "#{@ranker.column}=", value
-      end
-
-      def rank_changed?
-        @instance.send "#{@ranker.column}_changed?"
-      end
-
-      def new_record?
-        @instance.new_record?
       end
 
       def update_index_from_position
