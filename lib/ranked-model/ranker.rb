@@ -136,8 +136,7 @@ module RankedModel
         end
       end
 
-    private
-
+      private
       def position_at value
         @model.position = value
         update_index_from_position
@@ -192,15 +191,15 @@ module RankedModel
         if current_first.rank > RankedModel::MIN_RANK_VALUE && @model.rank == RankedModel::MAX_RANK_VALUE
           @model.base_relation.
             where( @model.arel_column.lteq(rank) ).
-            update_all( "#{@model.column} = #{@model.column} - 1" )
+            update_all( "`#{@model.column}` = `#{@model.column}` - 1" )
         elsif current_last.rank < (RankedModel::MAX_RANK_VALUE - 1) && @model.rank < current_last.rank
           @model.base_relation.
             where( @model.arel_column.gteq(rank) ).
-            update_all( "#{@model.column} = #{@model.column} + 1" )
+            update_all( "`#{@model.column}` = `#{@model.column}` + 1" )
         elsif current_first.rank > RankedModel::MIN_RANK_VALUE && @model.rank > current_first.rank
           @model.base_relation.
             where( @model.arel_column.lt(rank) ).
-            update_all( "#{@model.column} = #{@model.column} - 1" )
+            update_all( "`#{@model.column}` = `#{@model.column}` - 1" )
           @model.rank_at( @model.rank - 1 )
         else
           rebalance_ranks
