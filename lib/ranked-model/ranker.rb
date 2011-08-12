@@ -28,7 +28,7 @@ module RankedModel
 
         validate_ranker_for_instance!
       end
-      
+
       def validate_ranker_for_instance!
         if ranker.scope && !instance.class.respond_to?(ranker.scope)
           raise RankedModel::InvalidScope, %Q{No scope called "#{ranker.scope}" found in model}
@@ -147,7 +147,7 @@ module RankedModel
             where( instance.class.arel_table[:id].not_eq(instance.id) ).
             where( instance.class.arel_table[ranker.column].gteq(rank) ).
             update_all( "#{ranker.column} = #{ranker.column} + 1" )
-        elsif current_first.rank > RankedModel::MIN_RANK_VALUE && rank > current_first.rank 
+        elsif current_first.rank > RankedModel::MIN_RANK_VALUE && rank > current_first.rank
           instance.class.
             where( instance.class.arel_table[:id].not_eq(instance.id) ).
             where( instance.class.arel_table[ranker.column].lt(rank) ).
@@ -197,7 +197,7 @@ module RankedModel
                     instance.attributes["#{ranker.with_same.first}"]
                   )
                 ) {|scoper, attr|
-                  scoper.and( 
+                  scoper.and(
                     instance.class.arel_table[attr].eq(
                       instance.attributes["#{attr}"]
                     )
