@@ -13,37 +13,37 @@ module RankedModel
       @scope, @with_same = options.values_at :scope, :with_same
     end
 
+    # instance is the AR object
     def with instance
+      validate_options_for instance
       Mapper.new self, instance
+    end
+
+    def validate_options_for instance
+      if @scope && !instance.class.respond_to?(@scope)
+        raise RankedModel::InvalidScope, %Q{No scope called "#{@scope}" found in model}
+      end
+
+      has_valid_with_same = case @with_same
+        when Symbol
+          instance.respond_to?(@with_same)
+        when Array
+          @with_same.any? {|attr| instance.respond_to?(attr) }
+        else
+          true
+      end
+
+      unless has_valid_with_same
+        raise RankedModel::InvalidField, %Q{No field called "#{@with_same}" found in model}
+      end
     end
 
     class Mapper
       attr_accessor :ranker, :instance
 
       def initialize ranker, instance
-        self.ranker   = ranker
-        self.instance = instance
-
-        validate_ranker_for_instance!
-      end
-
-      def validate_ranker_for_instance!
-        if ranker.scope && !instance.class.respond_to?(ranker.scope)
-          raise RankedModel::InvalidScope, %Q{No scope called "#{ranker.scope}" found in model}
-        end
-
-        if ranker.with_same
-          if (case ranker.with_same
-                when Symbol
-                  !instance.respond_to?(ranker.with_same)
-                when Array
-                  ranker.with_same.detect {|attr| !instance.respond_to?(attr) }
-                else
-                  false
-              end)
-            raise RankedModel::InvalidField, %Q{No field called "#{ranker.with_same}" found in model}
-          end
-        end
+        @ranker   = ranker
+        @instance = instance
       end
 
       def handle_ranking
