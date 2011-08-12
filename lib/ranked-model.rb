@@ -9,6 +9,7 @@ module RankedModel
   #
   MAX_RANK_VALUE = 8388607
   MIN_RANK_VALUE = -8388607
+  MEDIAN_RANK_VALUE = 0
 
   def self.included base
 
