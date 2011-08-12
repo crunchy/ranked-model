@@ -90,7 +90,7 @@ module RankedModel
       end
 
       extend ::Forwardable
-      def_delegators :@model, :update_rank!, :rank, :position, :rank_at, :rank_changed?, :new_record?
+      def_delegators :@model, :update_rank!, :rank
 
       def current_at_position _pos
         if (ordered_instance = finder.offset(_pos).first)
@@ -106,66 +106,66 @@ module RankedModel
       end
 
       def update_index_from_position
-        case position
+        case @model.position
           when :first
             if current_first && current_first.rank
-              rank_at( ( ( RankedModel::MIN_RANK_VALUE - current_first.rank ).to_f / 2 ).ceil + current_first.rank)
+              @model.rank_at( ( ( RankedModel::MIN_RANK_VALUE - current_first.rank ).to_f / 2 ).ceil + current_first.rank)
             else
               position_at :middle
             end
           when :last
             if current_last && current_last.rank
-              rank_at( ( ( RankedModel::MAX_RANK_VALUE - current_last.rank ).to_f / 2 ).ceil + current_last.rank )
+              @model.rank_at( ( ( RankedModel::MAX_RANK_VALUE - current_last.rank ).to_f / 2 ).ceil + current_last.rank )
             else
               position_at :middle
             end
           when :middle
-            rank_at( ( ( RankedModel::MAX_RANK_VALUE - RankedModel::MIN_RANK_VALUE ).to_f / 2 ).ceil + RankedModel::MIN_RANK_VALUE )
+            @model.rank_at( ( ( RankedModel::MAX_RANK_VALUE - RankedModel::MIN_RANK_VALUE ).to_f / 2 ).ceil + RankedModel::MIN_RANK_VALUE )
           when String
             position_at position.to_i
           when 0
             position_at :first
           when Integer
-            neighbors = neighbors_at_position(position)
+            neighbors = neighbors_at_position(@model.position)
             min = (neighbors[:lower] ? neighbors[:lower].rank : RankedModel::MIN_RANK_VALUE)
             max = (neighbors[:upper] ? neighbors[:upper].rank : RankedModel::MAX_RANK_VALUE)
-            rank_at( ( ( max - min ).to_f / 2 ).ceil + min )
+            @model.rank_at( ( ( max - min ).to_f / 2 ).ceil + min )
           when NilClass
-            if !rank
+            if !@model.rank
               position_at :last
             end
         end
       end
 
       def assure_unique_position
-        if ( new_record? || rank_changed? )
+        if ( @model.new_record? || @model.rank_changed? )
           unless rank
-            rank_at( RankedModel::MAX_RANK_VALUE )
+            @model.rank_at( RankedModel::MAX_RANK_VALUE )
           end
 
-          if (rank > RankedModel::MAX_RANK_VALUE) || current_at_rank(rank)
+          if (@model.rank > RankedModel::MAX_RANK_VALUE) || current_at_rank(rank)
             rearrange_ranks
           end
         end
       end
 
       def rearrange_ranks
-        if current_first.rank > RankedModel::MIN_RANK_VALUE && rank == RankedModel::MAX_RANK_VALUE
-          @instance.class.
-            where( @instance.class.arel_table[:id].not_eq(@instance.id) ).
-            where( @instance.class.arel_table[@ranker.column].lteq(rank) ).
+        if current_first.rank > RankedModel::MIN_RANK_VALUE && @model.rank == RankedModel::MAX_RANK_VALUE
+          @model.class.
+            where( @model.class.arel_table[:id].not_eq(@instance.id) ).
+            where( @model.class.arel_table[@ranker.column].lteq(rank) ).
             update_all( "#{@ranker.column} = #{@ranker.column} - 1" )
-        elsif current_last.rank < (RankedModel::MAX_RANK_VALUE - 1) && rank < current_last.rank
-          @instance.class.
-            where( @instance.class.arel_table[:id].not_eq(@instance.id) ).
-            where( @instance.class.arel_table[@ranker.column].gteq(rank) ).
+        elsif current_last.rank < (RankedModel::MAX_RANK_VALUE - 1) && @model.rank < current_last.rank
+          @model.class.
+            where( @model.class.arel_table[:id].not_eq(@instance.id) ).
+            where( @model.class.arel_table[@ranker.column].gteq(rank) ).
             update_all( "#{@ranker.column} = #{@ranker.column} + 1" )
-        elsif current_first.rank > RankedModel::MIN_RANK_VALUE && rank > current_first.rank
-          @instance.class.
-            where( @instance.class.arel_table[:id].not_eq(@instance.id) ).
-            where( @instance.class.arel_table[@ranker.column].lt(rank) ).
+        elsif current_first.rank > RankedModel::MIN_RANK_VALUE && @model.rank > current_first.rank
+          @model.class.
+            where( @model.class.arel_table[:id].not_eq(@instance.id) ).
+            where( @model.class.arel_table[@ranker.column].lt(rank) ).
             update_all( "#{@ranker.column} = #{@ranker.column} - 1" )
-          rank_at( rank - 1 )
+          @model.rank_at( @model.rank - 1 )
         else
           rebalance_ranks
         end
@@ -183,8 +183,8 @@ module RankedModel
           else
             if !current_order[index] ||
                ( !current_order[index].rank.nil? &&
-                 current_order[index].rank >= rank )
-              rank_at rank_value
+                 current_order[index].rank >= @model.rank)
+              @model.rank_at rank_value
               has_set_self = true
               next
             end
@@ -195,34 +195,34 @@ module RankedModel
 
       def finder
         @finder ||= begin
-          _finder = @instance.class
+          _finder = @model.class
           if @ranker.scope
             _finder = _finder.send @ranker.scope
           end
           case @ranker.with_same
             when Symbol
               _finder = _finder.where \
-                @instance.class.arel_table[@ranker.with_same].eq(@instance.attributes["#{@ranker.with_same}"])
+                @model.class.arel_table[@ranker.with_same].eq(@instance.attributes["#{@ranker.with_same}"])
             when Array
               _finder = _finder.where(
                 @ranker.with_same[1..-1].inject(
-                  @instance.class.arel_table[@ranker.with_same.first].eq(
+                  @model.class.arel_table[@ranker.with_same.first].eq(
                     @instance.attributes["#{@ranker.with_same.first}"]
                   )
                 ) {|scoper, attr|
                   scoper.and(
-                    @instance.class.arel_table[attr].eq(
+                    @model.class.arel_table[attr].eq(
                       @instance.attributes["#{attr}"]
                     )
                   )
                 }
               )
           end
-          if !new_record?
+          if !@model.new_record?
             _finder = _finder.where \
-              @instance.class.arel_table[:id].not_eq(@instance.id)
+              @model.class.arel_table[:id].not_eq(@instance.id)
           end
-          _finder.order(@instance.class.arel_table[@ranker.column].asc).select([:id, @ranker.column])
+          _finder.order(@model.class.arel_table[@ranker.column].asc).select([:id, @ranker.column])
         end
       end
 
@@ -246,7 +246,7 @@ module RankedModel
         @current_last ||= begin
           if (ordered_instance = finder.
                                    except( :order ).
-                                   order( @instance.class.arel_table[@ranker.column].desc ).
+                                   order( @model.class.arel_table[@ranker.column].desc ).
                                    first)
             RankedModel::Ranker::Mapper.new @ranker, ordered_instance
           end
